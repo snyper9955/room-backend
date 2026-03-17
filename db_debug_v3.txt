@@ -1,0 +1,13 @@
+﻿[dotenv@17.3.1] injecting env (9) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+Connecting to DB...
+Connected.
+
+--- Users ---
+Email: "chemistryhero1@gmail.com", Role: user, ID: 69b96acc929f7bdc84df01c9
+Email: "a@b.com", Role: user, ID: 69b96b10929f7bdc84df01e4
+
+--- Rooms ---
+Room: 101, Status: occupied, ID: 69b96b4e929f7bdc84df01ff
+
+--- Bookings ---
+Email: "a@b.com", Status: approved, RoomID in Booking: 69b96b4e929f7bdc84df01ff, Room# in Booking: 101, ID: 69b96b74929f7bdc84df021f, CreatedAt: Tue Mar 17 2026 20:25:48 GMT+0530 (India Standard Time)

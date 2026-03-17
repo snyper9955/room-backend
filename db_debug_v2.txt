@@ -1,0 +1,13 @@
+﻿[dotenv@17.3.1] injecting env (9) from .env -- tip: ≡ƒñû agentic secret storage: https://dotenvx.com/as2
+Connecting to: cluster0.ixankh1.mongodb.net/?appName=Cluster0
+Connected to DB
+
+--- Users ---
+Email: chemistryhero1@gmail.com, Role: user, ID: 69b96acc929f7bdc84df01c9
+Email: a@b.com, Role: user, ID: 69b96b10929f7bdc84df01e4
+
+--- Rooms ---
+Room: 101, Status: occupied, ID: 69b96b4e929f7bdc84df01ff
+
+--- Bookings ---
+Email: a@b.com, Status: approved, Room: 101, ID: 69b96b74929f7bdc84df021f

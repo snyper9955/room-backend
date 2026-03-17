@@ -1,46 +1,40 @@
 const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema(
-{
-  member: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Member",
-    required: true
+  {
+    tenant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+    },
+    amount: {
+      type: Number,
+      required: true,
+    },
+    paymentId: {
+      type: String, // Razorpay payment ID
+      trim: true,
+    },
+    orderId: {
+      type: String, // Razorpay order ID
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "completed", "failed"],
+      default: "pending",
+      lowercase: true,
+      trim: true,
+    },
+    method: {
+      type: String, // UPI, Card, Cash
+      lowercase: true,
+      trim: true,
+    },
+    paidAt: {
+      type: Date,
+    },
   },
-
-  membership: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Membership"
-  },
-
-  amount: {
-    type: Number,
-    required: true
-  },
-
-  paymentMethod: {
-    type: String,
-    enum: ["cash", "upi", "card", "online"],
-    required: true
-  },
-
-  transactionId: {
-    type: String
-  },
-
-  paymentStatus: {
-    type: String,
-    enum: ["success", "pending", "failed"],
-    default: "success"
-  },
-
-  paidAt: {
-    type: Date,
-    default: Date.now
-  }
-
-},
-{ timestamps: true }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Payment", paymentSchema);

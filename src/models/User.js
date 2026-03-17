@@ -4,33 +4,48 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    lowercase: true,
+    trim: true,
   },
 
   password: {
     type: String,
     required: true,
-    select: false
+    select: false,
   },
 
-  name: String,
+  name: {
+    type: String,
+    trim: true,
+  },
 
-  phone: String,
+  phone: {
+    type: String,
+    trim: true,
+  },
 
   gender: {
     type: String,
-    enum: ["male","female","other"]
+    enum: ["male", "female", "other"],
+    lowercase: true,
+    trim: true,
   },
 
-  address: String,
+  address: {
+    type: String,
+    trim: true,
+  },
 
   dateOfBirth: Date,
 
   role: {
     type: String,
-    enum: ["admin","trainer","member","visitor"],
-    default: "visitor"
-  }
+    enum: ["admin", "manager", "user"],
+    default: "user",
+    lowercase: true,
+    trim: true,
+  },
 
 }, {timestamps:true})
 
