@@ -8,8 +8,8 @@ const protect = async (req, res, next) => {
     if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
       token = req.headers.authorization.split(" ")[1];
 
-      // Note: Using JWT_SECRET (check .env for exact name, you have JWT_SECRATE)
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.JWT_SECRATE || "default_secret");
+      // Use JWT_SECRET from .env
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret");
 
       req.user = await User.findById(decoded.id).select("-password");
 
@@ -18,12 +18,13 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: "Not authorized, no token" });
     }
   } catch (error) {
+    console.error(`[AUTH ERROR] ${error.message}${error.name === 'TokenExpiredError' ? ' (Expired)' : ''}`);
     return res.status(401).json({ message: "Token failed", error: error.message });
   }
 };
 
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  if (req.user && req.user.email === "chemistryhero1@gmail.com") {
     next();
   } else {
     res.status(403).json({ message: "Not authorized as an admin" });

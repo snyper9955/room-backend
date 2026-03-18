@@ -24,7 +24,7 @@ const bookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "vacated"],
       default: "pending",
       lowercase: true,
       trim: true,
@@ -38,6 +38,23 @@ const bookingSchema = new mongoose.Schema(
     },
     expiryDate: {
       type: Date,
+      default: function() {
+        if (this.moveInDate) {
+          const date = new Date(this.moveInDate);
+          date.setDate(date.getDate() + 30);
+          return date;
+        }
+        const date = new Date();
+        date.setDate(date.getDate() + 30);
+        return date;
+      }
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "completed"],
+      default: "pending",
+      lowercase: true,
+      trim: true,
     },
   },
   { timestamps: true }

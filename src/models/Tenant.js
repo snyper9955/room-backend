@@ -33,6 +33,20 @@ const tenantSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      lowercase: true,
+      trim: true,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "completed"],
+      default: "pending",
+      lowercase: true,
+      trim: true,
+    },
   },
   { timestamps: true }
 );

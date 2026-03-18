@@ -32,26 +32,35 @@ exports.getBookings = async (req, res, next) => {
 exports.getMyBookings = async (req, res, next) => {
   try {
     if (!req.user || !req.user.email) {
-      console.log("[DEBUG] getMyBookings: No user or email in request!");
       return res.status(401).json({ message: "User not identified" });
     }
 
     const userEmail = req.user.email.toLowerCase().trim();
-    console.log(`[DEBUG] getMyBookings: Fetching for "${userEmail}" (User ID: ${req.user._id})`);
+    const Booking = require("../models/Booking");
+    const Tenant = require("../models/Tenant");
+
+    const [bookings, tenants] = await Promise.all([
+      Booking.find({ email: userEmail }).populate("room"),
+      Tenant.find({ email: userEmail })
+    ]);
+
+    const bookingsWithAdminData = bookings.map(booking => {
+      const bookingObj = booking.toObject();
+      // Match tenant record by room ID
+      const tenantData = tenants.find(t => 
+        t.room && booking.room && t.room.toString() === booking.room._id.toString()
+      );
+
+      return {
+        ...bookingObj,
+        rentAmount: tenantData ? tenantData.rentAmount : 0,
+        tenantStatus: tenantData ? tenantData.status : 'pending',
+        joiningDate: tenantData ? tenantData.joinDate : booking.createdAt
+      };
+    });
     
-    // Exact match is safer since we normalize everywhere
-    const bookings = await Booking.find({ email: userEmail }).populate("room");
-    
-    console.log(`[DEBUG] getMyBookings: Found ${bookings.length} bookings`);
-    if (bookings.length > 0) {
-      bookings.forEach((b, i) => {
-        console.log(`[DEBUG] Booking ${i}: ID=${b._id}, status="${b.status}", email="${b.email}"`);
-      });
-    }
-    
-    res.json(bookings);
+    res.json(bookingsWithAdminData);
   } catch (error) {
-    console.error("[DEBUG] getMyBookings Error:", error);
     next(error);
   }
 };

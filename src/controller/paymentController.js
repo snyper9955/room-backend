@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const Payment = require("../models/Payment");
 const Room = require("../models/Room");
 const Booking = require("../models/Booking");
+const sendWhatsAppMessage = require("../utils/whatsapp");
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -76,19 +77,33 @@ exports.verifyPayment = async (req, res, next) => {
       paidAt: new Date(),
     });
 
-    // 2. Create Booking Record with 1 month expiry
+    // 2. Create/Update Booking Record with 1 month expiry
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 1);
 
-    const booking = await Booking.create({
-      name,
-      phone,
-      email: userEmail,
-      room: roomId,
-      status: "approved",
-      moveInDate: new Date(),
-      expiryDate: expiryDate,
+    let booking = await Booking.findOne({ 
+      email: userEmail, 
+      room: roomId, 
+      paymentStatus: "pending" 
     });
+
+    if (booking) {
+      booking.status = "approved";
+      booking.expiryDate = expiryDate;
+      booking.paymentStatus = "completed";
+      await booking.save();
+    } else {
+      booking = await Booking.create({
+        name,
+        phone,
+        email: userEmail,
+        room: roomId,
+        status: "approved",
+        moveInDate: new Date(),
+        expiryDate: expiryDate,
+        paymentStatus: "completed"
+      });
+    }
 
     // 3. Create/Update Tenant Record
     const Tenant = require("../models/Tenant");
@@ -103,19 +118,33 @@ exports.verifyPayment = async (req, res, next) => {
         rentAmount: amount,
         status: "active",
         moveInDate: new Date(),
+        paymentStatus: "completed"
       });
     } else {
       tenant.room = roomId;
       tenant.status = "active";
       tenant.moveInDate = new Date();
+      tenant.paymentStatus = "completed";
       await tenant.save();
     }
 
     // 4. Update Room Status and Occupancy
-    await Room.findByIdAndUpdate(roomId, { 
+    const updatedRoom = await Room.findByIdAndUpdate(roomId, { 
       status: "occupied",
       occupiedUntil: expiryDate
-    });
+    }, { new: true });
+
+    // 5. Send WhatsApp Notification to Admin
+    try {
+      const adminPhone = "+9198358271"; // Verified admin number base
+      const message = `🔔 *Payment Received!*\n\nUser: ${name}\nEmail: ${userEmail}\nRoom: ${updatedRoom?.roomNumber || 'N/A'}\nAmount: ₹${amount}\n\nStay confirmed until ${expiryDate.toDateString()}.`;
+      
+      await sendWhatsAppMessage(adminPhone, message);
+      console.log(`[DEBUG] WhatsApp reminder sent to admin for room ${updatedRoom?.roomNumber}`);
+    } catch (wsError) {
+      console.error("[ERROR] Failed to send WhatsApp reminder:", wsError.message);
+      // Don't fail the request if notification fails
+    }
 
     console.log(`[DEBUG] verifyPayment: Booking created with ID ${booking._id} for ${userEmail}`);
     console.log(`[DEBUG] verifyPayment: Booking status is "${booking.status}"`);
