@@ -26,16 +26,26 @@ app.use("/api/tenants", tenantRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/interactions", interactionRoutes);
 
-// Test Route
-app.get("/", (req, res) => {
-  res.send("API Running...");
-});
+// Serve static files from the React app
+const clientPath = path.join(__dirname, "../../client/dist");
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(clientPath));
+
+  // Any request that doesn't match the API routes above, send back the React app
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientPath, "index.html"));
+  });
+} else {
+  // Test Route for dev
+  app.get("/", (req, res) => {
+    res.send("API Running...");
+  });
+}
 
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
-// Routes are already registered above
-
-// Error Handling
+// Error Handling (only for routes that didn't match anything else, including the SPA fallback in production if needed, but "*" usually catches all)
 app.use(notFound);
 app.use(errorHandler);
 
