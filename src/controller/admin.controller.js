@@ -219,17 +219,35 @@ exports.grantAccess = async (req, res, next) => {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 30);
 
-    // 3. Create Booking (paymentStatus: pending)
-    const booking = await Booking.create({
-      name: name?.trim(),
-      phone: phone?.trim(),
-      email: userEmail,
-      room: roomId,
-      status: "approved",
-      moveInDate: new Date(),
-      expiryDate: expiryDate,
-      paymentStatus: "pending"
+    // 3. Create/Update Booking (paymentStatus: pending)
+    let booking = await Booking.findOne({ 
+      email: userEmail, 
+      room: roomId, 
+      status: { $ne: "vacated" } 
     });
+
+    if (booking) {
+      console.log(`[ADMIN] Updating existing booking ${booking._id} for ${userEmail}`);
+      booking.name = name?.trim() || booking.name;
+      booking.phone = phone?.trim() || booking.phone;
+      booking.status = "approved";
+      booking.moveInDate = new Date();
+      booking.expiryDate = expiryDate;
+      booking.paymentStatus = "pending";
+      await booking.save();
+    } else {
+      console.log(`[ADMIN] Creating new booking for ${userEmail}`);
+      booking = await Booking.create({
+        name: name?.trim(),
+        phone: phone?.trim(),
+        email: userEmail,
+        room: roomId,
+        status: "approved",
+        moveInDate: new Date(),
+        expiryDate: expiryDate,
+        paymentStatus: "pending"
+      });
+    }
 
     // 4. Create/Update Tenant record
     const Tenant = require("../models/Tenant");

@@ -28,7 +28,9 @@ exports.getBookings = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};// @desc Get current user's bookings
+};
+
+// @desc Get current user's bookings
 exports.getMyBookings = async (req, res, next) => {
   try {
     if (!req.user || !req.user.email) {
@@ -44,22 +46,39 @@ exports.getMyBookings = async (req, res, next) => {
       Tenant.find({ email: userEmail })
     ]);
 
-    const bookingsWithAdminData = bookings.map(booking => {
-      const bookingObj = booking.toObject();
-      // Match tenant record by room ID
-      const tenantData = tenants.find(t => 
-        t.room && booking.room && t.room.toString() === booking.room._id.toString()
-      );
-
-      return {
-        ...bookingObj,
-        rentAmount: tenantData ? tenantData.rentAmount : 0,
-        tenantStatus: tenantData ? tenantData.status : 'pending',
-        joiningDate: tenantData ? tenantData.joinDate : booking.createdAt
-      };
-    });
+    // Deduplicate bookings: one stay per room
+    const roomMap = new Map();
     
-    res.json(bookingsWithAdminData);
+    // Sort so we process better status first (completed payment wins)
+    const sortedBookings = bookings.sort((a, b) => {
+      // 1. Completed payment first
+      if (a.paymentStatus === 'completed' && b.paymentStatus !== 'completed') return -1;
+      if (a.paymentStatus !== 'completed' && b.paymentStatus === 'completed') return 1;
+      // 2. Most recent first
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    for (const booking of sortedBookings) {
+      if (!booking.room) continue;
+      const roomIdStr = booking.room._id.toString();
+      
+      // If we don't have this room yet, or if it's a better status, keep it
+      if (!roomMap.has(roomIdStr)) {
+        const bookingObj = booking.toObject();
+        const tenantData = tenants.find(t => 
+          t.room && t.room.toString() === roomIdStr
+        );
+
+        roomMap.set(roomIdStr, {
+          ...bookingObj,
+          rentAmount: tenantData ? tenantData.rentAmount : (booking.room?.price || 0),
+          tenantStatus: tenantData ? tenantData.status : 'pending',
+          joiningDate: tenantData ? (tenantData.joinDate || tenantData.moveInDate) : booking.createdAt
+        });
+      }
+    }
+    
+    res.json(Array.from(roomMap.values()));
   } catch (error) {
     next(error);
   }

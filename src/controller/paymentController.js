@@ -53,7 +53,7 @@ exports.verifyPayment = async (req, res, next) => {
     } = req.body;
 
     const userEmail = email?.toLowerCase()?.trim();
-    console.log("Verifying payment for:", userEmail, "Room:", roomId);
+    console.log(`[PAYMENT] Starting verification for: ${userEmail}, Room: ${roomId}`);
 
     const sign = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSign = crypto
@@ -62,13 +62,46 @@ exports.verifyPayment = async (req, res, next) => {
       .digest("hex");
 
     if (razorpay_signature !== "test_signature" && razorpay_signature !== expectedSign) {
+      console.error("[PAYMENT] Invalid signature detected");
       return res.status(400).json({ message: "Invalid payment signature" });
     }
 
     // Payment Successful - Update Database
+    console.log("[PAYMENT] Signature verified. Updating records...");
+
+    // 1. Create/Update Tenant Record (First, to get tenant ID for payment link)
+    const Tenant = require("../models/Tenant");
+    let tenant = await Tenant.findOne({ email: userEmail, room: roomId });
     
-    // 1. Create Payment Record
+    if (!tenant) {
+      // Fallback: try searching by email only if room-specific not found (legacy support)
+      tenant = await Tenant.findOne({ email: userEmail });
+    }
+
+    if (!tenant) {
+      console.log("[PAYMENT] Creating new tenant record");
+      tenant = await Tenant.create({
+        name,
+        email: userEmail,
+        phone,
+        room: roomId,
+        rentAmount: amount,
+        status: "active",
+        moveInDate: new Date(),
+        paymentStatus: "completed"
+      });
+    } else {
+      console.log("[PAYMENT] Updating existing tenant record:", tenant._id);
+      tenant.room = roomId;
+      tenant.status = "active";
+      tenant.moveInDate = new Date();
+      tenant.paymentStatus = "completed";
+      await tenant.save();
+    }
+    
+    // 2. Create Payment Record (Linked to Tenant)
     const payment = await Payment.create({
+      tenant: tenant._id,
       paymentId: razorpay_payment_id,
       orderId: razorpay_order_id,
       amount: amount,
@@ -76,23 +109,27 @@ exports.verifyPayment = async (req, res, next) => {
       method: "razorpay",
       paidAt: new Date(),
     });
+    console.log("[PAYMENT] Payment record created:", payment._id);
 
-    // 2. Create/Update Booking Record with 1 month expiry
+    // 3. Create/Update Booking Record with 1 month expiry
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 1);
 
+    // Look for ANY approved or pending booking for this user/room
     let booking = await Booking.findOne({ 
       email: userEmail, 
       room: roomId, 
-      paymentStatus: "pending" 
+      status: { $in: ["pending", "approved"] }
     });
 
     if (booking) {
+      console.log("[PAYMENT] Updating existing booking status to completed:", booking._id);
       booking.status = "approved";
       booking.expiryDate = expiryDate;
       booking.paymentStatus = "completed";
       await booking.save();
     } else {
+      console.log("[PAYMENT] Creating new approved booking");
       booking = await Booking.create({
         name,
         phone,
@@ -105,57 +142,32 @@ exports.verifyPayment = async (req, res, next) => {
       });
     }
 
-    // 3. Create/Update Tenant Record
-    const Tenant = require("../models/Tenant");
-    let tenant = await Tenant.findOne({ email: userEmail });
-    
-    if (!tenant) {
-      tenant = await Tenant.create({
-        name,
-        email: userEmail,
-        phone,
-        room: roomId,
-        rentAmount: amount,
-        status: "active",
-        moveInDate: new Date(),
-        paymentStatus: "completed"
-      });
-    } else {
-      tenant.room = roomId;
-      tenant.status = "active";
-      tenant.moveInDate = new Date();
-      tenant.paymentStatus = "completed";
-      await tenant.save();
-    }
-
     // 4. Update Room Status and Occupancy
     const updatedRoom = await Room.findByIdAndUpdate(roomId, { 
       status: "occupied",
       occupiedUntil: expiryDate
     }, { new: true });
+    console.log("[PAYMENT] Room status updated to occupied");
 
     // 5. Send WhatsApp Notification to Admin
     try {
-      const adminPhone = "+9198358271"; // Verified admin number base
+      const adminPhone = "+919835958271"; // Fixed: Correct 10-digit number
       const message = `🔔 *Payment Received!*\n\nUser: ${name}\nEmail: ${userEmail}\nRoom: ${updatedRoom?.roomNumber || 'N/A'}\nAmount: ₹${amount}\n\nStay confirmed until ${expiryDate.toDateString()}.`;
       
       await sendWhatsAppMessage(adminPhone, message);
-      console.log(`[DEBUG] WhatsApp reminder sent to admin for room ${updatedRoom?.roomNumber}`);
+      console.log(`[PAYMENT] WhatsApp notification sent to admin`);
     } catch (wsError) {
-      console.error("[ERROR] Failed to send WhatsApp reminder:", wsError.message);
-      // Don't fail the request if notification fails
+      console.error("[PAYMENT] Failed to send WhatsApp reminder:", wsError.message);
     }
-
-    console.log(`[DEBUG] verifyPayment: Booking created with ID ${booking._id} for ${userEmail}`);
-    console.log(`[DEBUG] verifyPayment: Booking status is "${booking.status}"`);
 
     res.json({
       success: true,
       message: "Payment verified and booking confirmed",
       bookingId: booking._id,
+      tenantId: tenant._id
     });
   } catch (error) {
-    console.error("Payment Verification Error:", error);
+    console.error("[PAYMENT] Global Verification Error:", error);
     next(error);
   }
 };
